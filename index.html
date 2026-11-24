@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#16a34a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>Tavolino Warehouse KPIs</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:system-ui,Roboto,sans-serif;background:#f1f5f4;color:#0f172a;font-size:17px}
-header{background:#0f766e;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
-header h1{font-size:19px;margin:0}
+header{background:#16a34a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+.brand{display:flex;flex-direction:column;gap:3px}.brand img{height:34px;width:auto;display:block}#ttl{font-size:14px;font-weight:600;min-height:16px}
 main{padding:14px;max-width:560px;margin:0 auto}
-button{font:inherit;border:0;border-radius:12px;padding:14px;background:#0f766e;color:#fff;font-weight:600;cursor:pointer}
+button{font:inherit;border:0;border-radius:12px;padding:14px;background:#15803d;color:#fff;font-weight:600;cursor:pointer}
 button.sec{background:#e2e8f0;color:#0f172a}
 button.danger{background:#b91c1c}
 button.small{padding:8px 12px;font-size:14px;border-radius:8px}
@@ -23,7 +23,7 @@ input,select{font:inherit;width:100%;padding:13px;border:1px solid #cbd5e1;borde
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid button{min-height:68px}
 .users button{display:block;width:100%;margin-bottom:10px;text-align:left;font-size:19px;background:#fff;color:#0f172a;border:1px solid #cbd5e1}
-.now{background:#0f766e;color:#fff}
+.now{background:#15803d;color:#fff}
 .now .big{font-size:26px;font-weight:700}
 .now .timer{font-size:38px;font-variant-numeric:tabular-nums;font-weight:700}
 .task.active{background:#f59e0b;color:#000}
@@ -42,7 +42,7 @@ h2{font-size:18px;margin:6px 0 10px}
 </style>
 </head>
 <body>
-<header><h1 id="ttl">Tavolino Warehouse KPIs</h1><button class="small sec" id="hbtn" style="display:none"></button></header>
+<header><div class="brand"><img src="logo-long.png" alt="Tavolino"><span id="ttl"></span></div><button class="small sec" id="hbtn" style="display:none"></button></header>
 <main id="app"></main>
 <div id="modal"></div>
 <script>
@@ -86,7 +86,7 @@ function header(title,btnText,btnFn){
 function stopTick(){if(tick){clearInterval(tick);tick=null}}
 
 function loginScreen(){
-  stopTick();cur=null;header('Tavolino Warehouse KPIs');
+  stopTick();cur=null;header('Warehouse KPIs');
   if(!db.admin){return setupScreen()}
   $('#app').innerHTML=`<h2>Who are you?</h2><div class="users">${db.users.map(u=>`<button data-id="${u.id}">${esc(u.name)}</button>`).join('')||'<p class="muted">No staff added yet. Manager: tap below to add users.</p>'}</div>
   <button class="sec" style="width:100%;margin-top:14px" id="adm">Manager login</button>`;
@@ -121,9 +121,9 @@ function workScreen(){
   const u=userById(cur.id);header(u.name,'Log out',logout);
   const st=dayState(u.id),o=openRec(u.id);
   const nowTask=o?o.task:null;
-  $('#app').innerHTML=`<div class="card now"><div class="muted" style="color:#ccfbf1">${st.active?'Current task':st.last?'Day finished':'Not started'}</div>
+  $('#app').innerHTML=`<div class="card now"><div class="muted" style="color:#dcfce7">${st.active?'Current task':st.last?'Day finished':'Not started'}</div>
    <div class="big">${esc(nowTask?(o.task+(o.pick?' #'+o.pick:'')):st.last?'End of Day recorded':'Tap "Start of day"')}</div>
-   <div class="timer" id="tm">${o?'0:00:00':''}</div><div class="muted" style="color:#ccfbf1">${o?'Started '+timeStr(new Date(o.start)):''}</div></div>
+   <div class="timer" id="tm">${o?'0:00:00':''}</div><div class="muted" style="color:#dcfce7">${o?'Started '+timeStr(new Date(o.start)):''}</div></div>
    <div class="grid">${TASKS.map((t,i)=>{
      let dis=false,cls='task';
      if(!st.active){dis=t!=='Start of day'}else{dis=t==='Start of day'}
