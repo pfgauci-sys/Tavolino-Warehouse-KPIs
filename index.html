@@ -130,7 +130,9 @@ function workScreen(){
      if(t===nowTask){cls+=' active';if(!PICK_TASKS.includes(t))dis=true}
      if(t==='End of Day')cls+=' end';if(t==='Meal Break')cls+=' meal';
      return `<button class="${cls}" data-t="${i}" ${dis?'disabled':''} ${t==='Start of day'||t==='End of Day'?'style="grid-column:span 2"':''}>${esc(t===nowTask&&PICK_TASKS.includes(t)?'Next pick (new number)':t)}</button>`}).join('')}</div>
-   <div class="card" style="margin-top:14px"><h2>Today</h2><table>${st.recs.map(r=>`<tr><td>${timeStr(new Date(r.start))}</td><td>${esc(r.task)}${r.pick?' #'+esc(r.pick):''}</td><td>${r.end?fmtDur(new Date(r.end)-new Date(r.start)):'…'}</td></tr>`).join('')||'<tr><td class="muted">Nothing yet</td></tr>'}</table></div>`;
+   <div class="card" style="margin-top:14px"><h2>Today</h2><table>${st.recs.map(r=>`<tr><td>${timeStr(new Date(r.start))}</td><td>${esc(r.task)}${r.pick?' #'+esc(r.pick):''}</td><td>${r.end?fmtDur(new Date(r.end)-new Date(r.start)):'…'}</td></tr>`).join('')||'<tr><td class="muted">Nothing yet</td></tr>'}</table></div>
+   <button class="sec" style="width:100%" id="hist">View all my records</button>`;
+  $('#hist').onclick=historyScreen;
   document.querySelectorAll('.grid button').forEach(b=>b.onclick=()=>chooseTask(TASKS[b.dataset.t]));
   stopTick();if(o){const s=new Date(o.start);const f=()=>{const e=$('#tm');if(e)e.textContent=fmtDur(Date.now()-s)};f();tick=setInterval(f,1000)}
 }
@@ -171,10 +173,24 @@ function pickPrompt(cb){
   };
 }
 
+// ---------- history (read-only views) ----------
+function historyHtml(recs,showUser){
+  if(!recs.length)return '<p class="muted">No records yet</p>';
+  const days={};recs.forEach(r=>(days[r.date]=days[r.date]||[]).push(r));
+  return Object.keys(days).sort().reverse().map(d=>{
+    const rs=days[d].sort((a,b)=>(showUser&&a.user!==b.user)?(a.user<b.user?-1:1):(a.start<b.start?-1:1));
+    const tot=rs.reduce((a,r)=>a+(r.end&&r.task!=='End of Day'?new Date(r.end)-new Date(r.start):0),0);
+    return `<h2>${d} <span class="muted">· ${fmtDur(tot)} logged</span></h2><table>${rs.map(r=>`<tr>${showUser?`<td>${esc(r.user)}</td>`:''}<td>${timeStr(new Date(r.start))}</td><td>${esc(r.task)}${r.pick?' #'+esc(r.pick):''}</td><td>${r.end?fmtDur(new Date(r.end)-new Date(r.start)):'…'}</td></tr>`).join('')}</table>`}).join('');
+}
+function historyScreen(){
+  stopTick();const u=userById(cur.id);header(u.name+' - history','Back',workScreen);
+  $('#app').innerHTML=`<div class="card"><p class="muted">All records saved on this phone for you, newest first.</p>${historyHtml(db.records.filter(r=>r.userId===u.id),false)}</div>`;
+}
+
 // ---------- admin ----------
 function adminScreen(tab){
   stopTick();header('Manager',"Log out",logout);
-  const tabs=[['export','Export'],['live','Today'],['users','Staff'],['import','Merge'],['set','Settings']];
+  const tabs=[['export','Export'],['records','Records'],['live','Today'],['users','Staff'],['import','Merge'],['set','Settings']];
   $('#app').innerHTML=`<div class="tabs">${tabs.map(t=>`<button class="${t[0]===tab?'':'sec'}" data-t="${t[0]}">${t[1]}</button>`).join('')}</div><div id="tab"></div>`;
   document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>adminScreen(b.dataset.t));
   const el=$('#tab');
@@ -187,6 +203,14 @@ function adminScreen(tab){
     const rng=()=>db.records.filter(r=>r.date>=$('#f').value&&r.date<=$('#t').value);
     $('#d').onclick=()=>download(`tavolino-detail-${$('#f').value}_${$('#t').value}.csv`,detailCsv(rng()));
     $('#s').onclick=()=>download(`tavolino-summary-${$('#f').value}_${$('#t').value}.csv`,summaryCsv(rng()));
+  }else if(tab==='records'){
+    const now=new Date(),f=new Date(now-6*864e5);
+    const names=[...new Set(db.users.map(u=>u.name).concat(db.records.map(r=>r.user)))].sort();
+    el.innerHTML=`<div class="card"><select id="u"><option value="">All staff</option>${names.map(n=>`<option>${esc(n)}</option>`).join('')}</select><div style="height:8px"></div>
+      <div class="row"><input type="date" id="f" value="${dateStr(f)}"><input type="date" id="t" value="${dateStr(now)}"></div></div><div class="card" id="out"></div>`;
+    const draw=()=>{const un=$('#u').value,a=$('#f').value,b=$('#t').value;
+      $('#out').innerHTML=historyHtml(db.records.filter(r=>(!un||r.user===un)&&r.date>=a&&r.date<=b),true)};
+    ['#u','#f','#t'].forEach(i=>$(i).onchange=draw);draw();
   }else if(tab==='live'){
     const t=dateStr(new Date());
     el.innerHTML=`<div class="card"><h2>Today</h2><table><tr><th>Staff</th><th>Now</th><th>Since</th></tr>${db.users.map(u=>{const o=openRec(u.id);const st=dayState(u.id);
@@ -214,8 +238,17 @@ function adminScreen(tab){
             start:new Date(sd.replace(' ','T')).toISOString(),end:ed?new Date(ed.replace(' ','T')).toISOString():null,note:r[ix('Note')]||''});add++}}
       save();$('#msg').textContent=`Added ${add} records, skipped ${dup} duplicates${bad?`, ${bad} file(s) not recognised`:''}.`};
   }else{
-    el.innerHTML=`<div class="card"><h2>Manager PIN</h2><input id="p" type="password" inputmode="numeric" placeholder="New manager PIN"><p class="err" id="e"></p><button style="width:100%" id="s">Change PIN</button></div>
+    el.innerHTML=`<div class="card"><h2>Data on this phone</h2><p class="muted">${db.records.length} records, ${db.users.length} staff saved on this device.<br><span id="ps">Checking storage protection…</span></p>
+     <button style="width:100%;margin-bottom:8px" id="bk">Download full backup (.json)</button>
+     <label class="muted">Restore from a backup file (adds anything missing, keeps existing data)</label><input type="file" id="rs" accept=".json"><p id="rm" class="muted"></p></div>
+     <div class="card"><h2>Manager PIN</h2><input id="p" type="password" inputmode="numeric" placeholder="New manager PIN"><p class="err" id="e"></p><button style="width:100%" id="s">Change PIN</button></div>
      <div class="card"><h2>Danger zone</h2><button class="danger" style="width:100%" id="w">Delete all records on this device</button></div>`;
+    try{navigator.storage.persisted().then(p=>{$('#ps').textContent=p?'Storage is protected: Android will not clear it automatically.':'Storage is not locked in. Do not clear Chrome/app data, and take a backup often.'})}catch(e){$('#ps').textContent=''}
+    $('#bk').onclick=()=>download(`tavolino-backup-${dateStr(new Date())}.json`,JSON.stringify(db),'application/json');
+    $('#rs').onchange=async e=>{try{const b=JSON.parse(await e.target.files[0].text());let nu=0,nr=0;
+      (b.users||[]).forEach(u=>{if(!db.users.some(x=>x.id===u.id)){db.users.push(u);nu++}});
+      (b.records||[]).forEach(r=>{if(!db.records.some(x=>x.id===r.id)){db.records.push(r);nr++}});
+      save();$('#rm').textContent=`Restored ${nu} staff and ${nr} records.`}catch(err){$('#rm').textContent='That file could not be read.'}};
     $('#s').onclick=()=>{const p=$('#p').value;if(!/^\d{4,}$/.test(p))return $('#e').textContent='At least 4 digits';db.admin.pin=p;save();$('#e').textContent='Saved'};
     $('#w').onclick=()=>{$('#modal').innerHTML=`<div class="modal"><div><h2>Delete ALL records?</h2><p class="muted">Export first. This cannot be undone.</p><div class="row"><button class="sec" id="c">Cancel</button><button class="danger" id="ok">Delete</button></div></div></div>`;
       $('#c').onclick=()=>$('#modal').innerHTML='';$('#ok').onclick=()=>{db.records=[];save();$('#modal').innerHTML=''}};
@@ -247,8 +280,8 @@ function parseCsv(t){
     else f+=c}
   if(f!==''||row.length){row.push(f);out.push(row)}return out;
 }
-function download(name,text){
-  const b=new Blob(['﻿'+text],{type:'text/csv;charset=utf-8'});
+function download(name,text,mime='text/csv;charset=utf-8'){
+  const b=new Blob([mime.startsWith('text/csv')?'﻿'+text:text],{type:mime});
   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
 }
