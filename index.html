@@ -46,7 +46,7 @@ h2{font-size:18px;margin:6px 0 10px}
 <main id="app"></main>
 <div id="modal"></div>
 <script>
-const TASKS=["Start of day","Picking","Meeting / Training","Receiving","Meal Break","Amenities Break","Replenishing","Cleaning","Customer service","Deliveries","Stock Control","Freezer Pick","End of Day"];
+const TASKS=["Start of day","Picking","Meeting / Training","Receiving","Meal Break","Amenities Break","Replenishing","Cleaning","Customer service","Deliveries","Stock Control","Audits","Freezer Pick","Close Down","End of Day"];
 const PICK_TASKS=["Picking"]; // tasks that require a pick number
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -129,7 +129,7 @@ function workScreen(){
      if(!st.active){dis=t!=='Start of day'}else{dis=t==='Start of day'}
      if(t===nowTask){cls+=' active';if(!PICK_TASKS.includes(t))dis=true}
      if(t==='End of Day')cls+=' end';if(t==='Meal Break')cls+=' meal';
-     return `<button class="${cls}" data-t="${i}" ${dis?'disabled':''} ${t==='Start of day'||t==='End of Day'?'style="grid-column:span 2"':''}>${esc(t===nowTask&&PICK_TASKS.includes(t)?'Next pick (new number)':t)}</button>`}).join('')}</div>
+     return `<button class="${cls}" data-t="${i}" ${dis?'disabled':''} ${t==='Start of day'||t==='Close Down'||t==='End of Day'?'style="grid-column:span 2"':''}>${esc(t===nowTask&&PICK_TASKS.includes(t)?'Next pick (new number)':t)}</button>`}).join('')}</div>
    <div class="card" style="margin-top:14px"><h2>Today</h2><table>${st.recs.map(r=>`<tr><td>${timeStr(new Date(r.start))}</td><td>${esc(r.task)}${r.pick?' #'+esc(r.pick):''}</td><td>${r.end?fmtDur(new Date(r.end)-new Date(r.start)):'…'}</td></tr>`).join('')||'<tr><td class="muted">Nothing yet</td></tr>'}</table></div>
    <button class="sec" style="width:100%" id="hist">View all my records</button>`;
   $('#hist').onclick=historyScreen;
@@ -199,9 +199,11 @@ function adminScreen(tab){
     el.innerHTML=`<div class="card"><h2>Export data</h2><p class="muted">Opens in Excel. ${db.records.length} records on this device.</p>
      <label class="muted">From</label><input type="date" id="f" value="${t}"><div style="height:8px"></div><label class="muted">To</label><input type="date" id="t" value="${t}"><div style="height:8px"></div>
      <button style="width:100%;margin-bottom:8px" id="d">Download detailed log (CSV)</button>
-     <button class="sec" style="width:100%" id="s">Download summary by task (CSV)</button></div>`;
+     <button class="sec" style="width:100%;margin-bottom:8px" id="s">Download summary by task (CSV)</button>
+     <button class="sec" style="width:100%" id="pk">Download picking report (CSV)</button></div>`;
     const rng=()=>db.records.filter(r=>r.date>=$('#f').value&&r.date<=$('#t').value);
     $('#d').onclick=()=>download(`tavolino-detail-${$('#f').value}_${$('#t').value}.csv`,detailCsv(rng()));
+    $('#pk').onclick=()=>download(`tavolino-picking-${$('#f').value}_${$('#t').value}.csv`,pickingCsv(rng()));
     $('#s').onclick=()=>download(`tavolino-summary-${$('#f').value}_${$('#t').value}.csv`,summaryCsv(rng()));
   }else if(tab==='records'){
     const now=new Date(),f=new Date(now-6*864e5);
@@ -269,6 +271,17 @@ function summaryCsv(recs){
     (m[k]=m[k]||{n:0,ms:0}).n++;m[k].ms+=new Date(r.end)-new Date(r.start)});
   const rows=[['Date','User','Task','Times selected','Total minutes','Total (h:mm:ss)']];
   Object.keys(m).sort().forEach(k=>{const [d,u,t]=k.split('\u0001');rows.push([d,u,t,m[k].n,(m[k].ms/60000).toFixed(2),fmtDur(m[k].ms)])});
+  return rows.map(r=>r.map(q).join(',')).join('\r\n');
+}
+function pickingCsv(recs){
+  const m={};
+  recs.forEach(r=>{if(r.task!=='Picking'||!r.end)return;
+    const k=[r.date,r.user,r.pick].join('\u0001');
+    const x=m[k]=m[k]||{ms:0,first:r.start};x.ms+=new Date(r.end)-new Date(r.start);if(r.start<x.first)x.first=r.start});
+  const rows=[['Pick Number','Staff Name','Total Mins','Date']];
+  Object.keys(m).map(k=>{const [d,u,p]=k.split('\u0001');return {d,u,p,mins:(m[k].ms/60000).toFixed(2),first:m[k].first}})
+    .sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:a.u<b.u?-1:a.u>b.u?1:a.first<b.first?-1:1)
+    .forEach(o=>rows.push([o.p,o.u,o.mins,o.d]));
   return rows.map(r=>r.map(q).join(',')).join('\r\n');
 }
 function parseCsv(t){
